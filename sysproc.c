@@ -51,8 +51,21 @@ sys_sbrk(void)
   if(argint(0, &n) < 0)
     return -1;
   addr = proc->sz;
-  if(growproc(n) < 0)
+  
+  // can't grow beyond kernel base
+  if(proc->sz + n >= KERNBASE)
     return -1;
+
+  if(n > 0){
+    // fake allocation, page will be allocated on pagefault
+    proc->sz += n;
+  }
+  else{
+    // deallocated as used to
+    if(growproc(n) < 0)
+      return -1;
+  }
+  
   return addr;
 }
 

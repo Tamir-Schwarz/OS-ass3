@@ -77,7 +77,12 @@ trap(struct trapframe *tf)
             cpu->id, tf->cs, tf->eip);
     lapiceoi();
     break;
-   
+  case T_PGFLT:
+    if(rcr2() <= proc->sz){ //special case of page fault, continue normal otherwise
+      if (lazyalloc(proc->pgdir, rcr2()) < 0)
+        proc->killed = 1; // kalloc failed while accessing a lazy page, order to kill
+      break;
+    }
   //PAGEBREAK: 13
   default:
     if(proc == 0 || (tf->cs&3) == 0){

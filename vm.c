@@ -384,3 +384,23 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 //PAGEBREAK!
 // Blank page.
 
+int
+lazyalloc(pde_t *pgdir, uint va)
+{
+  pte_t * pte;
+  char * mem;
+  
+  if((mem = kalloc()) == 0){
+    cprintf("lazyalloc out of memory\n");
+    return -1;
+  }
+  
+  memset(mem, 0, PGSIZE);
+  if((pte = walkpgdir(pgdir, (uint*)va, 1)) == 0){
+    panic("couldn't find pte.\n");
+  }
+  *pte = v2p(mem) | PTE_P | PTE_W | PTE_U;
+  cprintf("lazyalloc at: 0x%p.\n", (uint*)va);
+
+  return 0;
+}
