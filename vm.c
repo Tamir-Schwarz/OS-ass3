@@ -395,10 +395,7 @@ lazyalloc(pde_t *pgdir, uint va)
     return -1;
   }
   
-  memset(mem, 0, PGSIZE);
-  if((pte = walkpgdir(pgdir, (uint*)va, 1)) == 0){
-    panic("couldn't find pte.\n");
-  }
+  pte = walkpgdir(pgdir, (uint*)va, 1);
   *pte = v2p(mem) | PTE_P | PTE_W | PTE_U;
   cprintf("lazyalloc at: 0x%p.\n", (uint*)va);
 
