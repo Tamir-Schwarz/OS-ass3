@@ -10,6 +10,10 @@
 extern char data[];  // defined by kernel.ld
 struct segdesc gdt[NSEGS];
 
+
+
+
+
 // Set up CPU's kernel segment descriptors.
 // Run once on entry on each CPU.
 void
@@ -62,6 +66,118 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
     *pde = v2p(pgtab) | PTE_P | PTE_W | PTE_U;
   }
   return &pgtab[PTX(va)];
+}
+
+void 
+clear_tlb(){
+//  cprintf ("start clean tlb\n");
+    if(cpu->tlb_counter == 0){
+//      cprintf ("0 entries to clean\n");
+//      cprintf("clear - 0 tlb: counter: %d. first: %p. second: %p.\n", cpu->tlb_counter, cpu->tlb_first, cpu->tlb_second);
+        
+      // do nothing
+      cpu->tlb_first = 0;
+      cpu->tlb_second = 0;
+    }
+  else if(cpu->tlb_counter == 1){ // one entry in TLB
+//      cprintf ("1 entries to clean\n");
+//      cprintf("clear - 1: counter: %d. first: %p. second: %p.\n", cpu->tlb_counter, cpu->tlb_first, cpu->tlb_second);
+      uint va_delete = cpu->tlb_first;
+      pde_t * k_pgdir = cpu->kpgdir;
+      
+      pte_t * pte = walkpgdir (k_pgdir, (uint *)va_delete, 0);
+      if(pte != 0){
+          
+//          uint pa = PTE_ADDR(*pte);
+//          if(pa == 0)
+//            panic("kfree clear TLB");
+//          char *v = p2v(pa);
+//          kfree(v);
+//          *pte = 0;          
+          
+          *pte =0; // clear page table entry
+          // TODO free page table 
+          uint dir_entry = PDX(va_delete);
+          k_pgdir += dir_entry;
+          *k_pgdir = 0; // clear page directory entry
+          // clear TLB
+          cpu->tlb_first = 0;
+          cpu->tlb_counter = 0;
+        }
+    } // end 1 entry
+  
+  else if(cpu->tlb_counter == 2){ // 2 entries in TLB
+//      cprintf ("2 entries to clean\n");
+//       cprintf("clear - 2: counter: %d. first: %p. second: %p.\n", cpu->tlb_counter, cpu->tlb_first, cpu->tlb_second);
+      uint va_delete_1 = cpu->tlb_first;
+      uint va_delete_2 = cpu->tlb_second;
+      pde_t * k_pgdir = cpu->kpgdir;
+      
+      pte_t * pte_first = walkpgdir (k_pgdir, (uint *)va_delete_1, 0);
+      pte_t * pte_second = walkpgdir (k_pgdir, (uint *)va_delete_2, 0);
+      
+      uint entry_va1 = PDX(va_delete_1);
+      uint entry_va2 = PDX(va_delete_2);
+      
+      if(entry_va1 != entry_va2){ // different page tables
+          if(pte_first != 0){
+              
+//            uint pa = PTE_ADDR(*pte_first);
+//            if(pa == 0)
+//              panic("kfree clear TLB");
+//            char *v = p2v(pa);
+//            kfree(v);
+//            *pte_first = 0;              
+//              
+              
+//            *pte_first =0; // clear page table entry
+            // TODO free page table 
+            k_pgdir += entry_va1;
+            *k_pgdir = 0; // clear page directory entry
+            // clear TLB
+            cpu->tlb_first = 0;
+            
+            k_pgdir = cpu->kpgdir; // reset to to start of kpgdir
+          }
+          if(pte_second != 0){
+              
+//            uint pa = PTE_ADDR(*pte_second);
+//            if(pa == 0)
+//              panic("kfree clear TLB");
+//            char *v = p2v(pa);
+//            kfree(v);
+//            *pte_second = 0;              
+              
+              
+//            *pte_second =0; // clear page table entry
+            // TODO free page table 
+            k_pgdir += entry_va2;
+            *k_pgdir = 0; // clear page directory entry
+            // clear TLB
+            cpu->tlb_second = 0;
+           }
+          cpu->tlb_counter = 0;
+        }
+      
+      else{ // same page table
+          if(pte_first != 0){  
+              *pte_first = 0;
+            }
+          if(pte_second != 0){
+              *pte_second = 0;
+            }
+          k_pgdir += entry_va1;
+          *k_pgdir = 0;
+          cpu->tlb_first = 0;
+          cpu->tlb_second = 0;
+          cpu->tlb_counter = 0;
+        }
+    } // end 2 entries
+  
+    else{
+      panic("tlb clean");
+    }
+//  cprintf ("end clean tlb\n");
 }
 
 // Create PTEs for virtual addresses starting at va that refer to
@@ -157,6 +273,10 @@ kvmalloc(struct cpu *c)
 void
 switchkvm(struct cpu *c)
 {
+  // clear TLB
+//  cprintf ("@@switchkvm..\n");
+  
+  clear_tlb();
   lcr3(v2p(c->kpgdir));   // switch to the kernel page table
 }
 
@@ -172,7 +292,12 @@ switchuvm(struct proc *p)
   ltr(SEG_TSS << 3);
   if(p->pgdir == 0)
     panic("switchuvm: no pgdir");
-  lcr3(v2p(p->pgdir));  // switch to new address space
+//  lcr3(v2p(p->pgdir));  // switch to new address space
+  
+  // clear tlb
+//  cprintf ("#switchuvm..\n");
+  clear_tlb();
+  
   popcli();
 }
 
@@ -377,6 +502,100 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
   return 0;
 }
 
+int
+tlb_handler(pde_t *pgdir, uint va){
+//  cprintf("tlb info: counter: %d. first: %p. second: %p.\n", cpu->tlb_counter, cpu->tlb_first, cpu->tlb_second);
+  
+
+//  cprintf("fault at : 0x%p\n",(uint*)va);
+  pde_t * kpgdir = cpu->kpgdir;
+  pte_t * k_pte = walkpgdir(kpgdir, (uint*)va, 0);
+  
+//  if(k_pte == 0){ // page not on k_pgdir
+//       cprintf("page 0x%p wasn't found on tlb\n",va);
+//    }
+//  cprintf ("start alloc page..\n");
+  
+  // put page in k_pgdir  
+  k_pte = walkpgdir(kpgdir, (uint*)va, 1);
+  
+  pte_t * u_pte = walkpgdir(pgdir, (uint*)va, 0);
+//  if(u_pte == 0)
+//    cprintf("page 0x%p wasn't found on user pagedir\n",va);
+  
+//  cprintf ("page found on pgdir u_pte: %p\n", u_pte);
+//  cprintf ("page found on pgdir *u_pte: %p\n", *u_pte);
+  uint pa = *u_pte;
+//  cprintf("virtual at: 0x%p \t physical page at: 0x%p\n",(uint*)va, (uint *)pa);
+  
+  *k_pte = pa;
+//  cprintf ("page allocated k_pte: %p\n", k_pte);
+//  cprintf ("page allocated *k_pte: %p\n", *k_pte);
+
+  // inset to TLB
+  if(cpu->tlb_counter == 0){ // no entries in TLB
+//      cprintf ("inset to TLB: 0 entries in TLB\n");
+      cpu->tlb_first = va;
+      cpu->tlb_counter = 1;
+    }
+  else if(cpu->tlb_counter == 1){ // 1 entry on TLB
+//      cprintf ("inset to TLB: 1 entries in TLB\n");
+      cpu->tlb_second = cpu->tlb_first; // advnced old entry
+//      cpu->tlb_first = 0;
+      cpu->tlb_first = va;
+      cpu->tlb_counter = 2;
+    }
+  else if(cpu->tlb_counter == 2){ // 2 entries in TLB
+//      cprintf ("inset to TLB: 2 entries in TLB\n");
+      uint va_delete = cpu->tlb_second; // va to delete
+      uint va_stay = cpu->tlb_first; 
+      
+      pte_t * kpgdir = cpu->kpgdir;
+      
+      uint dir_entry_delete = PDX(va_delete);
+      uint dir_entry_stay = PDX(va_stay);
+      
+      pte_t * pde_delete = walkpgdir (kpgdir, (uint *)va_delete, 0);
+//      *pde_delete = 0; // zero page table entry
+      
+      // clear tables
+      if(dir_entry_delete != dir_entry_stay){ // different page tables
+          
+          uint pa = PTE_ADDR(*pde_delete);
+          if(pa == 0)
+            panic("kfree clear TLB");
+          char *v = p2v(pa);
+          kfree(v);
+          *pde_delete = 0;          
+          
+          kpgdir += dir_entry_delete;
+          *kpgdir = 0; // zero page directory entry
+          // TODO free page table
+        }
+      else{ // same page table
+        // do nothing
+      }
+//      cpu->tlb_second = 0;
+      cpu->tlb_second = va_stay; // advance old
+      
+//      cpu->tlb_first = 0;
+      cpu->tlb_first = va;
+    }
+  return 0;
+}
+
+int
+forbidden_address(char *kstack, uint va){
+  char * start_guard_page = (char *)PGROUNDDOWN((uint) kstack);
+  char * end_guard_page = start_guard_page + 4096;
+  
+  if( (va < (uint)end_guard_page) && (va >= (uint)start_guard_page) ){
+      // in guard page
+      return 1;
+    }
+  return 0;
+  
+}
 //PAGEBREAK!
 // Blank page.
 //PAGEBREAK!

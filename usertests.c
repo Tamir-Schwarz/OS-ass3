@@ -897,14 +897,14 @@ bigdir(void)
 
   printf(1, "bigdir test\n");
   unlink("bd");
-
+  printf (1, "here\n");
   fd = open("bd", O_CREATE);
   if(fd < 0){
     printf(1, "bigdir create failed\n");
     exit();
   }
   close(fd);
-
+  printf (1, "here 1\n");
   for(i = 0; i < 500; i++){
     name[0] = 'x';
     name[1] = '0' + (i / 64);
@@ -915,6 +915,7 @@ bigdir(void)
       exit();
     }
   }
+  printf (1, "here 2\n");
 
   unlink("bd");
   for(i = 0; i < 500; i++){
@@ -927,6 +928,7 @@ bigdir(void)
       exit();
     }
   }
+printf (1, "here 3\n");
 
   printf(1, "bigdir ok\n");
 }

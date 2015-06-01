@@ -12,6 +12,10 @@ struct cpu {
   int ncli;                    // Depth of pushcli nesting.
   int intena;                  // Were interrupts enabled before pushcli?
   
+  int tlb_counter;
+  uint tlb_first;
+  uint tlb_second;
+  
   // Cpu-local storage variables; see below
   struct cpu *cpu;
   struct proc *proc;           // The currently-running process.

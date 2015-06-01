@@ -45,7 +45,10 @@ trap(struct trapframe *tf)
       exit();
     return;
   }
-
+  
+//    int i;
+    int va;
+    
   switch(tf->trapno){
   case T_IRQ0 + IRQ_TIMER:
     if(cpu->id == 0){
@@ -77,7 +80,17 @@ trap(struct trapframe *tf)
             cpu->id, tf->cs, tf->eip);
     lapiceoi();
     break;
-   
+    
+    case T_PGFLT:
+      va = rcr2();
+      if(proc->sz >= va || forbidden_address(proc->kstack, va) ){
+//      cprintf("PAGE FAULT \nname: %s. pid: %d\n", proc->name, proc->pid);
+//      cprintf("va: %p\n", va);
+      tlb_handler(proc->pgdir, va);
+//      cprintf("i: %d\n\n", i);
+      break;
+   }
+      
   //PAGEBREAK: 13
   default:
     if(proc == 0 || (tf->cs&3) == 0){

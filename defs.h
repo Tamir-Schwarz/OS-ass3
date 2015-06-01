@@ -180,6 +180,9 @@ void            switchkvm(struct cpu*);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *, char *);
 int		mappages(pde_t *, void *, uint, uint, int);
+// our change
+int            tlb_handler(pde_t *, uint);
+int            forbidden_address(char *, uint );
 
 
 // number of elements in fixed-size array
