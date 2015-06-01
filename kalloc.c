@@ -8,6 +8,7 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "spinlock.h"
+#include "proc.h"
 
 void freerange(void *vstart, void *vend);
 extern char end[]; // first address after kernel loaded from ELF file
@@ -61,8 +62,19 @@ kfree(char *v)
 {
   struct run *r;
 
-  if((uint)v % PGSIZE || v < end || v2p(v) >= PHYSTOP)
+  if((uint)v % PGSIZE || v < end || v2p(v) >= PHYSTOP){
+//      cprintf ("panic kfree\n");
+//      cprintf("KERNBASE: %p\n", KERNBASE);
+//      cprintf("end: %p\n", end);
+//      cprintf("va to free: %p\n", v);
+//      
+//      cprintf ("(uint)v % PGSIZE: %d\n", (uint)v % PGSIZE);
+//      cprintf ("v < end: %d\n", v < end);
+//      cprintf ("v2p(v) >= PHYSTOP: %d\n", v2p(v) >= PHYSTOP);
+//      
+      
     panic("kfree");
+    }
 
   // Fill with junk to catch dangling refs.
   memset(v, 1, PGSIZE);

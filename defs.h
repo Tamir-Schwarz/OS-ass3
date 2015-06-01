@@ -182,7 +182,7 @@ void            clearpteu(pde_t *, char *);
 int		mappages(pde_t *, void *, uint, uint, int);
 // our change
 int            tlb_handler(pde_t *, uint);
-int            forbidden_address(char *, uint );
+int            forbidden_address(uint, uint );
 
 
 // number of elements in fixed-size array
