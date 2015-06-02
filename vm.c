@@ -566,16 +566,18 @@ tlb_handler(pde_t *pgdir, uint va){
 
 int
 forbidden_address(uint esp, uint va){
-  char * end_guard_page = (char *)PGROUNDDOWN((uint) esp);
-  char * start_guard_page = end_guard_page - 4096;
-  cprintf("in gaurd %p %p %p ",(uint*)va,start_guard_page,end_guard_page);
-  if( (va <= (uint)end_guard_page) && (va >= (uint)start_guard_page) ){
+  char * start_user_stack = (char *)PGROUNDDOWN((uint) esp);
+  start_user_stack -= 100;
+  start_user_stack = (char *)PGROUNDDOWN((uint) start_user_stack);
+//  char * start_guard_page = start_user_stack - PGSIZE;
+  
+  char * va_down = (char *)PGROUNDDOWN((uint) va);
+  
+  if(va_down == start_user_stack){
       // in guard page
-      cprintf("in gaurd");
       return 1;
     }
   return 0;
-  
 }
 //PAGEBREAK!
 // Blank page.

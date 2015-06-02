@@ -83,7 +83,7 @@ trap(struct trapframe *tf)
     
     case T_PGFLT:
       va = rcr2();
-      if(proc->sz >= va && !forbidden_address(proc->tf->esp, va) ){
+      if(proc->sz >= va && tf->err != 7){
 //      cprintf("PAGE FAULT \nname: %s. pid: %d. va: %p\n", proc->name, proc->pid, va);
 //          cprintf ("va: %p\n", va);
 //      cprintf("va: %p\n", va);
