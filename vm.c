@@ -586,3 +586,20 @@ forbidden_address(uint esp, uint va){
 //PAGEBREAK!
 // Blank page.
 
+int
+lazyalloc(pde_t *pgdir, uint va)
+{
+  pte_t * pte;
+  char * mem;
+  
+  if((mem = kalloc()) == 0){
+    cprintf("lazyalloc out of memory\n");
+    return -1;
+  }
+  
+  pte = walkpgdir(pgdir, (uint*)va, 1);
+  *pte = v2p(mem) | PTE_P | PTE_W | PTE_U;
+  cprintf("lazyalloc at: 0x%p.\n", (uint*)va);
+
+  return 0;
+}
