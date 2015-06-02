@@ -80,21 +80,33 @@ trap(struct trapframe *tf)
             cpu->id, tf->cs, tf->eip);
     lapiceoi();
     break;
-  case T_PGFLT:
-    if(rcr2() <= proc->sz){ //special case of page fault, continue normal otherwise
-      if (lazyalloc(proc->pgdir, rcr2()) < 0)
-        proc->killed = 1; // kalloc failed while accessing a lazy page, order to kill
-      break;
+//  case T_PGFLT:
+//    if(rcr2() <= proc->sz){ //special case of page fault, continue normal otherwise
+//      if (lazyalloc(proc->pgdir, rcr2()) < 0)
+//        proc->killed = 1; // kalloc failed while accessing a lazy page, order to kill
+//      break;
     
     case T_PGFLT:
       va = rcr2();
-      if(proc->sz >= va && tf->err != 7){
+      if(proc->sz >= va){
+          
+          int test = allocated (proc->pgdir, va);
+          
+          if(test){ // va is allocated
+              tlb_handler(proc->pgdir, va);
+            }
+          else{
+             if (lazyalloc(proc->pgdir, rcr2()) < 0)
+                  proc->killed = 1; // kalloc failed while accessing a lazy page, order to kill
+            }
+          break;
+          
+          
 //      cprintf("PAGE FAULT \nname: %s. pid: %d. va: %p\n", proc->name, proc->pid, va);
 //          cprintf ("va: %p\n", va);
 //      cprintf("va: %p\n", va);
-      tlb_handler(proc->pgdir, va);
 //      cprintf("i: %d\n\n", i);
-      break;
+//      break;
    }
       
   //PAGEBREAK: 13

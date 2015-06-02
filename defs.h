@@ -185,6 +185,7 @@ int            tlb_handler(pde_t *, uint);
 int            forbidden_address(uint, uint );
 
 int             lazyalloc(pde_t *, uint);
+int             allocated(pde_t *pgdir, uint va);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

@@ -567,13 +567,13 @@ tlb_handler(pde_t *pgdir, uint va){
 int
 forbidden_address(uint esp, uint va){
   char * start_user_stack = (char *)PGROUNDDOWN((uint) esp);
-  start_user_stack -= 100;
-  start_user_stack = (char *)PGROUNDDOWN((uint) start_user_stack);
-//  char * start_guard_page = start_user_stack - PGSIZE;
+//  start_user_stack -= 100;
+//  start_user_stack = (char *)PGROUNDDOWN((uint) start_user_stack);
+  char * start_guard_page = start_user_stack - PGSIZE;
   
   char * va_down = (char *)PGROUNDDOWN((uint) va);
   
-  if(va_down == start_user_stack){
+  if(va_down == start_guard_page){
       // in guard page
       return 1;
     }
@@ -602,4 +602,13 @@ lazyalloc(pde_t *pgdir, uint va)
   cprintf("lazyalloc at: 0x%p.\n", (uint*)va);
 
   return 0;
+}
+
+int
+allocated(pde_t *pgdir, uint va){
+   pte_t * pte = walkpgdir (pgdir, (uint *)va, 0);
+   if(*pte & PTE_P){
+       return 1; // already allocted
+     }
+   else return 0;
 }
