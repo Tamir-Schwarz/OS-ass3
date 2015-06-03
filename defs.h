@@ -181,6 +181,8 @@ int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *, char *);
 int		mappages(pde_t *, void *, uint, uint, int);
 
-
+int             tlb_handle(pde_t *, uint);
+int             clear_tlb();
+int             overflow(uint , uint);
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

@@ -148,6 +148,9 @@ setupkvm(void)
 void
 kvmalloc(struct cpu *c)
 {
+  c->tlb_counter = 0;
+  c->tlb_entry1 = 0;
+  c->tlb_entry2 = 0;
   c->kpgdir = setupkvm();
   switchkvm(c);
 }
@@ -158,6 +161,7 @@ void
 switchkvm(struct cpu *c)
 {
   lcr3(v2p(c->kpgdir));   // switch to the kernel page table
+  clear_tlb();
 }
 
 // Switch TSS and h/w page table to correspond to process p.
@@ -172,7 +176,8 @@ switchuvm(struct proc *p)
   ltr(SEG_TSS << 3);
   if(p->pgdir == 0)
     panic("switchuvm: no pgdir");
-  lcr3(v2p(p->pgdir));  // switch to new address space
+//  lcr3(v2p(p->pgdir));  // switch to new address space
+  clear_tlb();
   popcli();
 }
 
@@ -384,3 +389,120 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 //PAGEBREAK!
 // Blank page.
 
+int
+tlb_handle(pde_t * pgdir, uint va){
+    pde_t * kpgdir = cpu->kpgdir;
+    pte_t * u_pte, * k_pte;
+    uint first, second;
+    
+    u_pte = walkpgdir(pgdir, (uint *)va, 0);
+    if(u_pte == 0 || (*u_pte & PTE_P) == 0){ 
+      panic("u_pte not in user pgdir");
+    }
+    
+//    cprintf("fault on , va: 0x%p\n",(uint*)va);
+    
+    if(cpu->tlb_counter == 2){
+      first = cpu->tlb_entry1;
+      second = cpu->tlb_entry2;
+      
+      k_pte = walkpgdir(kpgdir, (uint*)second, 0);
+      *k_pte = 0; // map second to 0
+      
+      if (PDX(first) != PDX(second)){ // mapped to same table
+        kfree((char*)PGROUNDDOWN((uint)k_pte));// free the page table
+        kpgdir[PDX(second)] = 0;
+      }
+      
+      k_pte = walkpgdir(kpgdir, (uint*)va, 1);
+      if(k_pte == 0)
+        panic("k_pte not in kernel pgdir 2");
+      
+      *k_pte = *u_pte;
+      
+      cpu->tlb_entry2 = cpu->tlb_entry1;
+      cpu->tlb_entry1 = va;
+    }
+    else if (cpu->tlb_counter == 1) {
+      
+      k_pte = walkpgdir(kpgdir, (uint*)va, 1);
+      if(k_pte == 0){
+        cprintf("k_pte = 0x%p\n",k_pte);
+        cprintf("*k_pte = 0x%p\n",*k_pte);
+        panic("k_pte not in kernel pgdir 1");
+      }
+      
+      *k_pte = *u_pte;
+      
+      cpu->tlb_entry2 = cpu->tlb_entry1;
+      cpu->tlb_entry1 = va;
+      cpu->tlb_counter = 2;      
+    }
+    else if (cpu->tlb_counter == 0){
+      k_pte = walkpgdir(kpgdir, (uint*)va, 1);
+      if(k_pte == 0)
+        panic("k_pte not in kernel pgdir 0");
+      
+      *k_pte = *u_pte;
+      
+      cpu->tlb_entry1 = va;
+      cpu->tlb_counter = 1; 
+    }
+    else {
+      panic("tlb_handler");
+    }
+//    cprintf("found user page, pa: 0x%p\n",(uint*)*u_pte);
+  
+  return 0;
+}
+
+int
+clear_tlb(){
+  pde_t * kpgdir = cpu->kpgdir;
+  pte_t * k_pte;
+  uint first, second;
+  
+  if(cpu->tlb_counter == 2){ // clear only the 2nd entry
+    first = cpu->tlb_entry1;
+    second = cpu->tlb_entry2;
+    
+    k_pte = walkpgdir(kpgdir, (uint*)second, 0);
+    *k_pte = 0; // map second to 0
+      
+    if (PDX(first) != PDX(second)){ // mapped to different table
+      kfree((char*)PGROUNDDOWN((uint)k_pte));// free the page table
+      kpgdir[PDX(second)] = 0;
+    }
+    
+    cpu->tlb_counter = 1;
+    // continue to clear the 1st entry
+  }
+  
+  if(cpu->tlb_counter == 1){
+    first = cpu->tlb_entry1;
+    k_pte = walkpgdir(kpgdir, (uint*)first, 0);
+    *k_pte = 0; // map first to 0
+    kfree((char*)PGROUNDDOWN((uint)k_pte));// free the page table
+    kpgdir[PDX(first)] = 0;
+    
+    cpu->tlb_counter = 0;
+  }
+  
+  if(cpu->tlb_counter == 0){
+    //nothing to do
+  }
+  
+  return 0;
+}
+
+int
+overflow(uint esp, uint va){
+  uint stack_start = PGROUNDDOWN(esp);
+  uint gaurd_start = stack_start - PGSIZE;
+  
+  if(va <= stack_start && va > gaurd_start){
+//    cprintf("stack overflow %p %p %p ", va, stack_start, gaurd_start);
+    return 1;
+  }
+  return 0;
+}
