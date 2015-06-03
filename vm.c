@@ -73,117 +73,97 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
 
 void 
 clear_tlb(){
-    if(cpu->tlb_counter == 0){
+  //cprintf("clean: %d\n", cpu->tlb_counter);
+  if(cpu->tlb_counter == 0){
       // do nothing
+    cpu->tlb_first = 0;
+    cpu->tlb_second = 0;
+    return;
+  }  
+  if(cpu->tlb_counter == 1){ // one entry in TLB
+    //cprintf("in if 1\n");
+    uint va_delete = cpu->tlb_first;
+    pde_t * k_pgdir = cpu->kpgdir;  
+    pte_t * pte = walkpgdir (k_pgdir, (uint *)va_delete, 0);
+    if(pte != 0){
+      *pte = 0;
+      uint entry_pd = PDX(va_delete);
+      pte_t * ppn_pt = p2v( PTE_ADDR(k_pgdir[entry_pd])  );
+      kfree((char *)ppn_pt);
+      k_pgdir[entry_pd] = 0;
+      // clear TLB
       cpu->tlb_first = 0;
       cpu->tlb_second = 0;
-    }
-    
-  else if(cpu->tlb_counter == 1){ // one entry in TLB
-      uint va_delete = cpu->tlb_first;
-      pde_t * k_pgdir = cpu->kpgdir;
-      
-      pte_t * pte = walkpgdir (k_pgdir, (uint *)va_delete, 0);
-      if(pte != 0){
-          
-    // ZEVEL
-//  pgtab = (pte_t*)p2v(PTE_ADDR(pgdir[PDX(va)]));
-          
-       uint entry_pd = PDX(va_delete);
-       pte_t * ppn_pt = p2v( PTE_ADDR(k_pgdir[entry_pd])  );
-       kfree((char *)ppn_pt);
-//       *ppn_pt = 0;
-       
-       k_pgdir[entry_pd] = 0;
-          // clear TLB
-          cpu->tlb_first = 0;
-          cpu->tlb_counter = 0;
-        }
-    } // end 1 entry
-  
-  else if(cpu->tlb_counter == 2){ // 2 entries in TLB
-      uint va_delete_1 = cpu->tlb_first;
-      uint va_delete_2 = cpu->tlb_second;
-      pde_t * k_pgdir = cpu->kpgdir;
-      
-      pte_t * pte_first = walkpgdir (k_pgdir, (uint *)va_delete_1, 0);
-      pte_t * pte_second = walkpgdir (k_pgdir, (uint *)va_delete_2, 0);
-      
-      uint entry_va1 = PDX(va_delete_1);
-      uint entry_va2 = PDX(va_delete_2);
-      
-      if(entry_va1 != entry_va2){ // different page tables
-          if(pte_first != 0){
-              
-//            uint entry_pd = PDX(va_delete_1);
-            pte_t * ppn_pt = p2v( PTE_ADDR(k_pgdir[entry_va1])  );
-            kfree((char *)ppn_pt);
-//            *ppn_pt = 0;
-
-            k_pgdir[entry_va1] = 0;   
-              
-              
-//              kfree((char *)pte_first);
-//            *pte_first = 0; // clear page table entry
-            // TODO free page table 
-//            k_pgdir += entry_va1;
-//            *k_pgdir = 0; // clear page directory entry
-            // clear TLB
-            cpu->tlb_first = 0;
-            
-            k_pgdir = cpu->kpgdir; // reset to to start of kpgdir
-          }
-          if(pte_second != 0){
-              
-            pte_t * ppn_pt = p2v( PTE_ADDR(k_pgdir[entry_va2])  );
-            kfree((char *)ppn_pt);
-//            *ppn_pt = 0;
-
-            k_pgdir[entry_va2] = 0;
-              
-              
-
-//            kfree((char *) pte_second); 
-//            *pte_second =0; // clear page table entry
-            // TODO free page table 
-//            k_pgdir += entry_va2;
-//            *k_pgdir = 0; // clear page directory entry
-            // clear TLB
-            cpu->tlb_second = 0;
-           }
-        }
-      
-      else{ // same page table
-          
-          if(pte_first != 0){
-
-            pte_t * ppn_pt = p2v( PTE_ADDR(k_pgdir[entry_va1])  );
-            kfree((char *)ppn_pt);
-//            *ppn_pt = 0;
-
-            k_pgdir[entry_va1] = 0;
-            k_pgdir[entry_va2] = 0;
-              
-              
-//              kfree((char *)pte_first);
-//              *pte_first = 0;
-            }
-//          if(pte_second != 0){
-//              *pte_second = 0;
-//            }
-//          k_pgdir += entry_va1;
-//          *k_pgdir = 0;
-          
-          cpu->tlb_first = 0;
-          cpu->tlb_second = 0;
-          
-        }
       cpu->tlb_counter = 0;
-    } // end 2 entries
-  
-    else{
-      panic("tlb clean");
+    } else {
+      panic("should not happen");
     }
+    //cprintf("%d %d %d\n", cpu->tlb_counter, cpu->tlb_first, cpu->tlb_second);
+    return;
+  } // end 1 entry
+  
+  if(cpu->tlb_counter == 2){ // 2 entries in TLB
+    //cprintf("in if 2\n");
+    uint va_delete_1 = cpu->tlb_first;
+    uint va_delete_2 = cpu->tlb_second;
+    pde_t * k_pgdir = cpu->kpgdir;
+    //cprintf("a\n");  
+    pte_t * pte_first = walkpgdir (k_pgdir, (uint *)va_delete_1, 0);
+    //cprintf("b\n");
+    pte_t * pte_second = walkpgdir (k_pgdir, (uint *)va_delete_2, 0);
+    //cprintf("c\n");
+    uint entry_va1 = PDX(va_delete_1);
+    uint entry_va2 = PDX(va_delete_2);
+    //cprintf("wtf? %d %d\n",entry_va1 , entry_va2);  
+    if(entry_va1 != entry_va2){ // different page tables
+      //cprintf("IN DIFF PAGES pte1_addr: %x, pte2_addr: %x ,val1: %x, val2: %x\n", pte_first, pte_second, va_delete_1, va_delete_2);  
+      if(pte_first != 0){
+        pte_t * ppn_pt = p2v( PTE_ADDR(k_pgdir[entry_va1])  );
+        kfree((char *)ppn_pt);
+        k_pgdir[entry_va1] = 0;   
+              
+        // clear TLB
+        cpu->tlb_first = 0;
+      } else {
+        //cprintf("%d %x %x\n", cpu->tlb_counter, cpu->tlb_first, cpu->tlb_second);
+        panic("should not happen 2");
+      }
+      
+      if(pte_second != 0){
+        pte_t * ppn_pt = p2v( PTE_ADDR(k_pgdir[entry_va2])  );
+        kfree((char *)ppn_pt);
+        k_pgdir[entry_va2] = 0;
+        // clear TLB
+        cpu->tlb_second = 0;
+      } else {
+        //cprintf("%d %d %d\n", cpu->tlb_counter, cpu->tlb_first, cpu->tlb_second);
+        panic("should not happen!");
+      }
+      cpu->tlb_counter = 0;
+      return;
+    }
+      
+    // they are on same page
+    //cprintf("they are on same pg\n");
+    if(pte_first != 0){
+      //cprintf("q\n");
+      pte_t * ppn_pt = p2v( PTE_ADDR(k_pgdir[entry_va1]));
+      //cprintf("w\n");
+      kfree((char *)ppn_pt);
+      //cprintf("e\n");
+      k_pgdir[entry_va1] = 0;
+      //cprintf("r\n");
+    } else {
+      panic("should not happen3!");
+    }
+    //cprintf("t\n");
+    cpu->tlb_first = 0;
+    cpu->tlb_second = 0;
+    cpu->tlb_counter = 0;
+  } // end 2 entries
+  else{
+    panic("tlb clean");
+  }
 }
 
 // Create PTEs for virtual addresses starting at va that refer to
@@ -270,6 +250,10 @@ setupkvm(void)
 void
 kvmalloc(struct cpu *c)
 {
+  c->tlb_counter = 0;
+  c->tlb_first = 0;
+  c->tlb_second = 0;
+  
   c->kpgdir = setupkvm();
   switchkvm(c);
 }
@@ -281,9 +265,10 @@ switchkvm(struct cpu *c)
 {
   // clear TLB
 //  cprintf ("@@switchkvm..\n");
-  
+  pushcli();
   clear_tlb();
   lcr3(v2p(c->kpgdir));   // switch to the kernel page table
+  popcli();
 }
 
 // Switch TSS and h/w page table to correspond to process p.
@@ -449,9 +434,11 @@ copyuvm(pde_t *pgdir, uint sz)
     return 0;
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
-      panic("copyuvm: pte should exist");
+      continue;
+      //panic("copyuvm: pte should exist");
     if(!(*pte & PTE_P))
-      panic("copyuvm: page not present");
+      continue;
+      //panic("copyuvm: page not present");
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0)
@@ -511,56 +498,64 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 int
 tlb_handler(pde_t *pgdir, uint va){
   pde_t * kpgdir = cpu->kpgdir;
-  pte_t * k_pte = walkpgdir(kpgdir, (uint*)va, 0);
+  pte_t * k_pte = 0;
  
+  //cprintf("got trap. pid: %d, va: %x, c: %d\n", proc->pid, va, cpu->tlb_counter);
+  
+  if(cpu->tlb_counter == 2){ // 2 entries in TLB
+    //cprintf("insert 2\n");
+    uint va_delete = cpu->tlb_second; // va to delete
+    uint va_stay = cpu->tlb_first; 
+      
+    pte_t * k_pgdir = cpu->kpgdir;
+      
+    uint dir_entry_delete = PDX(va_delete);
+    uint dir_entry_stay = PDX(va_stay);
+    
+    // clear tables
+    //cprintf("%d %d\n", dir_entry_delete, dir_entry_stay);
+    if(dir_entry_delete != dir_entry_stay){ // different page tables
+      pte_t * ppn_pt = p2v(PTE_ADDR(k_pgdir[dir_entry_delete]));
+      kfree((char *)ppn_pt);
+      k_pgdir[dir_entry_delete] = 0;
+    } else{
+      pte_t * to_clear = walkpgdir(k_pgdir, (uint *)va_delete,0);
+      if (to_clear == 0 || (*to_clear & PTE_P) == 0 ) {
+        //cprintf("pte val: %x\n", *to_clear);
+        //cprintf("%d %d\n", to_clear == 0, *to_clear & PTE_P);
+        panic("idiot");
+      }
+      *to_clear = 0;
+    }
+      
+    cpu->tlb_second = va_stay; // advance old
+    cpu->tlb_first = va; // insert new
+  }
+  
   // put page in k_pgdir  
   k_pte = walkpgdir(kpgdir, (uint*)va, 1);
   
   pte_t * u_pte = walkpgdir(pgdir, (uint*)va, 0);
-  uint pa = *u_pte;
-  
-  *k_pte = pa;
-
+  if (u_pte == 0 || (*u_pte & PTE_P) ==0) {
+    panic("hhhaaaa!");
+  }
+  *k_pte = *u_pte;
   // inset to TLB
+  
   if(cpu->tlb_counter == 0){ // no entries in TLB
-      cpu->tlb_first = va;
-      cpu->tlb_counter = 1;
-    }
+    //cprintf("insert 0\n");
+    cpu->tlb_first = va;
+    cpu->tlb_counter = 1;
+    return 0;
+  }
   
-  else if(cpu->tlb_counter == 1){ // 1 entry on TLB
-      cpu->tlb_second = cpu->tlb_first; // advnced old entry
-      cpu->tlb_first = va;
-      cpu->tlb_counter = 2;
-    }
-  
-  else if(cpu->tlb_counter == 2){ // 2 entries in TLB
-      uint va_delete = cpu->tlb_second; // va to delete
-      uint va_stay = cpu->tlb_first; 
-      
-      pte_t * k_pgdir = cpu->kpgdir;
-      
-      uint dir_entry_delete = PDX(va_delete);
-      uint dir_entry_stay = PDX(va_stay);
-      
-//      pte_t * pde_delete = walkpgdir (kpgdir, (uint *)va_delete, 0);
-//      *pde_delete = 0; // zero page table entry
-      
-      // clear tables
-      if(dir_entry_delete != dir_entry_stay){ // different page tables
-
-            pte_t * ppn_pt = p2v(PTE_ADDR(k_pgdir[dir_entry_delete]));
-            kfree((char *)ppn_pt);
-//            *ppn_pt = 0;
-
-            k_pgdir[dir_entry_delete] = 0;
-            
-        }
-      else{ } // same page table = do nothing
-      
-      cpu->tlb_second = va_stay; // advance old
-      
-      cpu->tlb_first = va; // insert new
-    }
+  if(cpu->tlb_counter == 1){ // 1 entry on TLB
+    //cprintf("insert 1\n");
+    cpu->tlb_second = cpu->tlb_first; // advnced old entry
+    cpu->tlb_first = va;
+    cpu->tlb_counter = 2;
+    return 0;
+  }
   return 0;
 }
 
@@ -570,6 +565,9 @@ forbidden_address(uint esp, uint va){
 //  start_user_stack -= 100;
 //  start_user_stack = (char *)PGROUNDDOWN((uint) start_user_stack);
   char * start_guard_page = start_user_stack - PGSIZE;
+  cprintf("start_user_stack: %p\n", start_user_stack);
+  cprintf("start_guard_page: %p\n", start_guard_page);
+  cprintf("start_user_stack - 1024: %p\n", start_user_stack - 1024);
   
   char * va_down = (char *)PGROUNDDOWN((uint) va);
   
@@ -589,25 +587,28 @@ forbidden_address(uint esp, uint va){
 int
 lazyalloc(pde_t *pgdir, uint va)
 {
-  pte_t * pte;
+//  pte_t * pte;
   char * mem;
   
   if((mem = kalloc()) == 0){
-    cprintf("lazyalloc out of memory\n");
+//    cprintf("lazyalloc out of memory\n");
     return -1;
   }
-  
-  pte = walkpgdir(pgdir, (uint*)va, 1);
-  *pte = v2p(mem) | PTE_P | PTE_W | PTE_U;
-  cprintf("lazyalloc at: 0x%p.\n", (uint*)va);
+  memset(mem, 0, PGSIZE);
+  mappages(pgdir, (char*)PGROUNDDOWN(va), PGSIZE, v2p(mem), PTE_W|PTE_U);
+//  pte = walkpgdir(pgdir, (uint*)va, 1);
+//  *pte = v2p(mem) | PTE_P | PTE_W | PTE_U;
+  //cprintf("lazyalloc at: 0x%p.\n", (uint*)va);
 
+  
+  //return tlb_handler(pgdir, va);
   return 0;
 }
 
 int
 allocated(pde_t *pgdir, uint va){
    pte_t * pte = walkpgdir (pgdir, (uint *)va, 0);
-   if(*pte & PTE_P){
+   if(pte != 0 && *pte & PTE_P){
        return 1; // already allocted
      }
    else return 0;

@@ -434,15 +434,21 @@ mem(void)
   ppid = getpid();
   if((pid = fork()) == 0){
     m1 = 0;
-    while((m2 = malloc(10001)) != 0){
+    while((m2 = malloc(1000001)) != 0){
       *(char**)m2 = m1;
       m1 = m2;
     }
+    
+    printf(1, "frreing\n");
     while(m1){
+      printf(1, "aaaaaaa\n");
       m2 = *(char**)m1;
+      printf(1, "bbbbbbbb %x\n", m1);
       free(m1);
+      printf(1, "cccccccc\n");
       m1 = m2;
     }
+    printf(1, "after frreing\n");
     m1 = malloc(1024*20);
     if(m1 == 0){
       printf(1, "couldn't allocate mem?!!\n");
@@ -1705,6 +1711,12 @@ rand()
   return randstate;
 }
 
+void bla() {
+  int * a = (int*)malloc(50);
+  *a = 3;
+  free(a);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -1715,7 +1727,7 @@ main(int argc, char *argv[])
     exit();
   }
   close(open("usertests.ran", O_CREATE));
-
+/*
   createdelete();
   linkunlink();
   concreate();
@@ -1737,9 +1749,10 @@ main(int argc, char *argv[])
   openiputtest();
   exitiputtest();
   iputtest();
-
-  mem();
-  pipe1();
+*/
+  bla();
+mem();
+/*  pipe1();
   preempt();
   exitwait();
 
@@ -1754,6 +1767,6 @@ main(int argc, char *argv[])
   forktest();
   bigdir(); // slow
   exectest();
-
+*/
   exit();
 }

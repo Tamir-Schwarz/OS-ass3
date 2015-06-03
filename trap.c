@@ -88,18 +88,25 @@ trap(struct trapframe *tf)
     
     case T_PGFLT:
       va = rcr2();
+      //cprintf("FT: %x\n", va);
       if(proc->sz >= va){
           
           int test = allocated (proc->pgdir, va);
-          
+          pushcli();
           if(test){ // va is allocated
+           // cprintf("y %x\n", va);
               tlb_handler(proc->pgdir, va);
+              
             }
           else{
-             if (lazyalloc(proc->pgdir, rcr2()) < 0)
+          //  cprintf("n %x\n", va);
+             if (lazyalloc(proc->pgdir, rcr2()) < 0){
                   proc->killed = 1; // kalloc failed while accessing a lazy page, order to kill
+                  break;
+             }
             }
-          break;
+          popcli();
+          return;
           
           
 //      cprintf("PAGE FAULT \nname: %s. pid: %d. va: %p\n", proc->name, proc->pid, va);

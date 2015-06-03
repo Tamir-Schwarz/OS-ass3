@@ -57,6 +57,8 @@ freerange(void *vstart, void *vend)
 // which normally should have been returned by a
 // call to kalloc().  (The exception is when
 // initializing the allocator; see kinit above.)
+uint AP = 0;
+
 void
 kfree(char *v)
 {
@@ -86,6 +88,9 @@ kfree(char *v)
   kmem.freelist = r;
   if(kmem.use_lock)
     release(&kmem.lock);
+  AP++;
+  if (AP %10000 == 0)
+    cprintf("AP: %d\n", AP);
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -103,6 +108,10 @@ kalloc(void)
     kmem.freelist = r->next;
   if(kmem.use_lock)
     release(&kmem.lock);
+  
+  AP--;
+  if (AP %10000 == 0)
+    cprintf("AP: %d\n", AP);
   return (char*)r;
 }
 
