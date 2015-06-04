@@ -323,9 +323,11 @@ copyuvm(pde_t *pgdir, uint sz)
     return 0;
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
-      panic("copyuvm: pte should exist");
+      continue;
+//      panic("copyuvm: pte should exist");
     if(!(*pte & PTE_P))
-      panic("copyuvm: page not present");
+      continue;
+//      panic("copyuvm: page not present");
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0)
@@ -391,6 +393,7 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 
 int
 tlb_handle(pde_t * pgdir, uint va){
+//  cprintf ("TLB  ");
     pde_t * kpgdir = cpu->kpgdir;
     pte_t * u_pte, * k_pte;
     uint first, second;
@@ -409,7 +412,7 @@ tlb_handle(pde_t * pgdir, uint va){
       k_pte = walkpgdir(kpgdir, (uint*)second, 0);
       *k_pte = 0; // map second to 0
       
-      if (PDX(first) != PDX(second)){ // mapped to same table
+      if (PDX(first) != PDX(second)){ // mapped to different table
         kfree((char*)PGROUNDDOWN((uint)k_pte));// free the page table
         kpgdir[PDX(second)] = 0;
       }
@@ -505,4 +508,30 @@ overflow(uint esp, uint va){
     return 1;
   }
   return 0;
+}
+
+int
+isAllocated(pde_t * pgdir, uint va){
+//  cprintf ("isAllocated..   ");
+  
+  pte_t * u_pte = walkpgdir (pgdir, (uint *) va, 0);
+  if(u_pte && (*u_pte & PTE_P) == 1){
+      
+//      if (va == 0x4004 )cprintf ("is- %p allocted ", va);
+      return 1;
+    }
+  else{
+      if (va == 0x4004 ){
+//          cprintf("va cond-  u_pte: %p. *u_pte & PTE_P: %d\n", u_pte , (*u_pte & PTE_P));
+//          cprintf ("is- %p NOT allocted ", va);
+        }
+      return 0;
+    }
+}
+
+int
+lazy(pde_t * pgdir, uint va){
+  int a = allocuvm(pgdir, PGROUNDDOWN(va), PGROUNDDOWN(va) + PGSIZE);
+//  cprintf ("lazy - va: %p, alloced? %p.   ", va, a);
+  return a;
 }

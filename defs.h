@@ -184,5 +184,7 @@ int		mappages(pde_t *, void *, uint, uint, int);
 int             tlb_handle(pde_t *, uint);
 int             clear_tlb();
 int             overflow(uint , uint);
+int             isAllocated(pde_t * pgdir, uint va);
+int             lazy(pde_t * pgdir, uint va);
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

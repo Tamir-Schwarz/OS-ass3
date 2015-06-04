@@ -77,17 +77,30 @@ trap(struct trapframe *tf)
             cpu->id, tf->cs, tf->eip);
     lapiceoi();
     break;
+    
   case T_PGFLT:
     pushcli();
     if(rcr2() <= proc->sz && !overflow(tf->esp,rcr2())){
-      
-      tlb_handle(proc->pgdir, rcr2());
+        
+      if(isAllocated (proc->pgdir, rcr2() )){
+         tlb_handle(proc->pgdir, rcr2()); 
+        }
+      else{
+          if (lazy(proc->pgdir, rcr2()) <= 0){
+              proc->killed = 1;
+              break;
+            }
+        }
       popcli();
       return;
     }
     popcli();
     
+//    case T_DEBUG:
+//      break;
   //PAGEBREAK: 13
+    
+    
   default:
     if(proc == 0 || (tf->cs&3) == 0){
       // In kernel, it must be our mistake.
@@ -95,6 +108,9 @@ trap(struct trapframe *tf)
               tf->trapno, cpu->id, tf->eip, rcr2());
       panic("trap");
     }
+    
+    cprintf("\nOUR - va: %p. sz: %p. over: %d\n", rcr2 (), proc->sz, overflow (proc->tf->esp, rcr2 ()));
+    
     // In user space, assume process misbehaved.
     cprintf("pid %d %s: trap %d err %d on cpu %d "
             "eip 0x%x addr 0x%x--kill proc\n",
