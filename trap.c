@@ -79,22 +79,27 @@ trap(struct trapframe *tf)
     break;
     
   case T_PGFLT:
-    pushcli();
     if(rcr2() <= proc->sz && !overflow(tf->esp,rcr2())){
+    pushcli();
         
       if(isAllocated (proc->pgdir, rcr2() )){
-         tlb_handle(proc->pgdir, rcr2()); 
+         if(tlb_handler(proc->pgdir, rcr2()) < 0){
+          proc->killed = 1;
+          popcli();
+          break;
         }
+      }
       else{
-          if (lazy(proc->pgdir, rcr2()) <= 0){
+        if (lazy(proc->pgdir, rcr2()) <= 0){
               proc->killed = 1;
+              popcli();
               break;
             }
-        }
+      }
+        
       popcli();
       return;
     }
-    popcli();
     
 //    case T_DEBUG:
 //      break;
@@ -108,9 +113,6 @@ trap(struct trapframe *tf)
               tf->trapno, cpu->id, tf->eip, rcr2());
       panic("trap");
     }
-    
-    cprintf("\nOUR - va: %p. sz: %p. over: %d\n", rcr2 (), proc->sz, overflow (proc->tf->esp, rcr2 ()));
-    
     // In user space, assume process misbehaved.
     cprintf("pid %d %s: trap %d err %d on cpu %d "
             "eip 0x%x addr 0x%x--kill proc\n",

@@ -392,8 +392,8 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 // Blank page.
 
 int
-tlb_handle(pde_t * pgdir, uint va){
-//  cprintf ("TLB  ");
+tlb_handler(pde_t * pgdir, uint va){
+
     pde_t * kpgdir = cpu->kpgdir;
     pte_t * u_pte, * k_pte;
     uint first, second;
@@ -403,14 +403,13 @@ tlb_handle(pde_t * pgdir, uint va){
       panic("u_pte not in user pgdir");
     }
     
-//    cprintf("fault on , va: 0x%p\n",(uint*)va);
-    
     if(cpu->tlb_counter == 2){
       first = cpu->tlb_entry1;
       second = cpu->tlb_entry2;
       
       k_pte = walkpgdir(kpgdir, (uint*)second, 0);
       *k_pte = 0; // map second to 0
+      cpu->tlb_counter = 1; //now only 1 page is allocated
       
       if (PDX(first) != PDX(second)){ // mapped to different table
         kfree((char*)PGROUNDDOWN((uint)k_pte));// free the page table
@@ -418,21 +417,21 @@ tlb_handle(pde_t * pgdir, uint va){
       }
       
       k_pte = walkpgdir(kpgdir, (uint*)va, 1);
-      if(k_pte == 0)
-        panic("k_pte not in kernel pgdir 2");
+      if(k_pte == 0){
+        return -1; //kernel out of memory
+      }
       
       *k_pte = *u_pte;
       
       cpu->tlb_entry2 = cpu->tlb_entry1;
       cpu->tlb_entry1 = va;
+      cpu->tlb_counter = 2; 
     }
     else if (cpu->tlb_counter == 1) {
       
       k_pte = walkpgdir(kpgdir, (uint*)va, 1);
       if(k_pte == 0){
-        cprintf("k_pte = 0x%p\n",k_pte);
-        cprintf("*k_pte = 0x%p\n",*k_pte);
-        panic("k_pte not in kernel pgdir 1");
+        return -1; //kernel out of memory
       }
       
       *k_pte = *u_pte;
@@ -443,8 +442,9 @@ tlb_handle(pde_t * pgdir, uint va){
     }
     else if (cpu->tlb_counter == 0){
       k_pte = walkpgdir(kpgdir, (uint*)va, 1);
-      if(k_pte == 0)
-        panic("k_pte not in kernel pgdir 0");
+      if(k_pte == 0){
+        return -1; //kernel out of memory
+      }
       
       *k_pte = *u_pte;
       
@@ -454,7 +454,6 @@ tlb_handle(pde_t * pgdir, uint va){
     else {
       panic("tlb_handler");
     }
-//    cprintf("found user page, pa: 0x%p\n",(uint*)*u_pte);
   
   return 0;
 }
@@ -503,35 +502,27 @@ overflow(uint esp, uint va){
   uint stack_start = PGROUNDDOWN(esp);
   uint gaurd_start = stack_start - PGSIZE;
   
-  if(va <= stack_start && va > gaurd_start){
-//    cprintf("stack overflow %p %p %p ", va, stack_start, gaurd_start);
+  if(va <= stack_start && va > gaurd_start)
     return 1;
-  }
+
   return 0;
 }
 
 int
 isAllocated(pde_t * pgdir, uint va){
-//  cprintf ("isAllocated..   ");
   
   pte_t * u_pte = walkpgdir (pgdir, (uint *) va, 0);
-  if(u_pte && (*u_pte & PTE_P) == 1){
-      
-//      if (va == 0x4004 )cprintf ("is- %p allocted ", va);
+  if(u_pte && (*u_pte & PTE_P))
       return 1;
-    }
-  else{
-      if (va == 0x4004 ){
-//          cprintf("va cond-  u_pte: %p. *u_pte & PTE_P: %d\n", u_pte , (*u_pte & PTE_P));
-//          cprintf ("is- %p NOT allocted ", va);
-        }
-      return 0;
-    }
+
+  return 0;
 }
 
 int
 lazy(pde_t * pgdir, uint va){
-  int a = allocuvm(pgdir, PGROUNDDOWN(va), PGROUNDDOWN(va) + PGSIZE);
-//  cprintf ("lazy - va: %p, alloced? %p.   ", va, a);
-  return a;
+  int res =  allocuvm(pgdir, PGROUNDDOWN(va), PGROUNDDOWN(va) + PGSIZE);
+  if (res > 0){
+//    cprintf("lazy allocation at 0x%p, va:0x%p\n", PGROUNDDOWN(va), va);
+  }
+  return res;
 }

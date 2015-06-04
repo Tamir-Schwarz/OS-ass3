@@ -181,7 +181,7 @@ int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *, char *);
 int		mappages(pde_t *, void *, uint, uint, int);
 
-int             tlb_handle(pde_t *, uint);
+int             tlb_handler(pde_t *, uint);
 int             clear_tlb();
 int             overflow(uint , uint);
 int             isAllocated(pde_t * pgdir, uint va);
